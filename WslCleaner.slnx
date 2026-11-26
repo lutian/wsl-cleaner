@@ -1,4 +1,0 @@
-<Solution>
-  <Project Path="src/WslCleaner/WslCleaner.csproj" />
-  <Project Path="tests/WslCleaner.Checks/WslCleaner.Checks.csproj" />
-</Solution>
