@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WSL Cleaner — referência de painel em abas</title>
+<style>
+/* Referência local: somente Consolas, fundo preto e verde suave derivados do app.cpp.
+   Superfícies, bordas e espaçamentos abaixo são próprios desta proposta. Sem CSS externo. */
+:root { color-scheme:dark; font-family:Consolas,"Courier New",monospace; background:#000; color:#d2f0d2; line-height:1.6; }
+* { box-sizing:border-box; }
+body { margin:0; padding:clamp(12px,3vw,32px); }
+main { max-width:1100px; margin:auto; }
+h1 { font-size:1.6rem; margin:0; } h2 { font-size:1.3rem; margin:0 0 16px; } h3 { font-size:1rem; }
+p { margin:8px 0 16px; }
+header { margin-bottom:24px; } .note { border-left:4px solid #d2f0d2; padding:8px 16px; }
+[role="tablist"] { display:flex; flex-wrap:wrap; gap:8px; border-bottom:1px solid #d2f0d2; padding-bottom:12px; }
+button,input,select,textarea { font:inherit; color:inherit; background:#000; border:1px solid #d2f0d2; border-radius:0; padding:8px 12px; }
+button { cursor:pointer; } button:hover { text-decoration:underline; }
+[role="tab"][aria-selected="true"],.primary { background:#d2f0d2; color:#000; font-weight:bold; }
+:focus-visible { outline:3px solid #d2f0d2; outline-offset:4px; }
+[role="tabpanel"] { padding:24px 0; }
+[hidden] { display:none !important; }
+label { display:block; margin:12px 0 6px; }
+select,textarea { width:100%; max-width:100%; }
+textarea { resize:vertical; overflow-wrap:anywhere; white-space:pre-wrap; min-height:5em; }
+.actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:16px 0; }
+.metrics,.fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:16px; }
+.metrics > div,fieldset,article { border:1px solid #d2f0d2; padding:16px; margin:16px 0; min-width:0; }
+dt { font-size:.9rem; } dd { margin:8px 0 0; font-size:1.25rem; font-weight:bold; }
+input[type="number"] { width:100%; } input[type="checkbox"] { width:20px; height:20px; vertical-align:middle; margin-right:8px; accent-color:#d2f0d2; }
+legend { padding:0 8px; } .small { font-size:.9rem; } code { overflow-wrap:anywhere; }
+summary { cursor:pointer; padding:8px; border:1px solid #d2f0d2; } pre { white-space:pre-wrap; overflow-wrap:anywhere; border:1px solid #d2f0d2; padding:16px; }
+footer { border-top:1px solid #d2f0d2; padding-top:16px; }
+@media (prefers-reduced-motion: reduce) {
+ *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+<h1>WSL Cleaner</h1>
+<p>Monitor de espaço • limites de alerta, não cotas de armazenamento</p>
+<p class="note"><strong>Referência visual, não aplicativo.</strong> Todos os dados são ilustrativos, sem leitura do computador. Nenhum botão grava configurações, inicia serviços ou executa manutenção. O painel nativo foi compilado e passou nas verificações ocultas de geometria/estado; o pacote desta revisão contém o painel verificado. Esta referência não comprova qualidade visual, foco, teclado ou DPI do aplicativo.</p>
+</header>
+<div role="tablist" aria-label="Áreas do painel">
+<button type="button" role="tab" id="tab-discos" aria-controls="discos" aria-selected="true" tabindex="0">Discos</button>
+<button type="button" role="tab" id="tab-gerais" aria-controls="gerais" aria-selected="false" tabindex="-1">Configurações gerais</button>
+<button type="button" role="tab" id="tab-manutencao" aria-controls="manutencao" aria-selected="false" tabindex="-1">Manutenção</button>
+<button type="button" role="tab" id="tab-diagnostico" aria-controls="diagnostico" aria-selected="false" tabindex="-1">Diagnóstico</button>
+</div>
+<p class="small">Navegação: Tab entra na aba ativa; setas esquerda/direita, Home e End trocam de aba. O foco permanece visível. Estados são indicados por texto, não só por cor.</p>
+<section role="tabpanel" id="discos" aria-labelledby="tab-discos" tabindex="0">
+<h2>Seu disco, sem misturar configurações globais</h2>
+<label for="disk">Disco selecionado — somente discos com medição disponível</label>
+<select id="disk" aria-describedby="disk-help">
+<option value="wsl">WSL · Ubuntu · exemplo medido</option>
+<option value="docker">Docker · disco de dados · exemplo medido</option>
+</select>
+<p id="disk-help" class="small">O seletor usa toda a largura disponível. Caminhos candidatos sem medição ficam em Diagnóstico. Esta seleção não restringe a limpeza do Docker.</p>
+<label for="path">Caminho completo — leitura e seleção de texto</label>
+<textarea id="path" readonly rows="3" wrap="soft" spellcheck="false">C:\Users\UsuarioExemplo\AppData\Local\Packages\DistribuicaoUbuntuExemplo\LocalState\ext4.vhdx</textarea>
+<div class="actions"><button type="button" id="copy">Copiar caminho</button><span class="small">Também é possível selecionar o texto e usar Ctrl+C.</span></div>
+<dl class="metrics">
+<div><dt>Tamanho do arquivo VHDX</dt><dd id="length">42 GiB</dd></div>
+<div><dt>Limite de alerta salvo</dt><dd id="saved">100 GiB</dd></div>
+<div><dt>Estado</dt><dd id="state">Normal · medição disponível</dd></div>
+</dl>
+<p class="small">Valores ilustrativos. Comprimento do arquivo não é uso dentro do Linux, alocação física nem espaço recuperável. Com este limite, aviso em 80 GiB e crítico em 90 GiB.</p>
+<fieldset><legend>Configuração somente deste disco</legend>
+<label for="budget">Limite de alerta (GiB; 0 = sem limite)</label>
+<input id="budget" type="number" value="100" min="0" step="any" aria-describedby="budget-help">
+<p id="budget-help">Não reserva espaço nem impede crescimento. A fonte nativa usa conversão inteira exata para bytes e preserva o valor original quando a exibição não muda. Não aceita frações de byte (por exemplo, 0.1 GiB).</p>
+<div class="actions"><button type="button" class="primary" data-demo="Prévia: somente o limite deste disco seria salvo. Nada foi gravado.">Salvar limite deste disco</button><span id="dirty">Sem alterações no exemplo.</span></div>
+</fieldset>
+<p>Na fonte nativa, atualizações não descartam edições nem plano revisado. Um alvo indisponível mantém caminho e edição com aviso explícito; não vira um disco medido fictício. Trocar de disco com limite alterado exige confirmação. Limites de IDs não vistos continuam guardados. Esta página apenas ilustra esses estados.</p>
+</section>
+<section role="tabpanel" id="gerais" aria-labelledby="tab-gerais" tabindex="0" hidden>
+<h2>Configurações gerais</h2>
+<p>Valem para todos os recursos monitorados; não pertencem ao disco selecionado.</p>
+<fieldset><legend>Alertas e intervalos — valores ilustrativos</legend>
+<div class="fields">
+<div><label for="reserve">Reserva livre no computador (GiB)</label><input id="reserve" type="number" value="20" min="0" step="any"></div>
+<div><label for="warn">Aviso (%)</label><input id="warn" type="number" value="80" min="1" max="99"></div>
+<div><label for="critical">Crítico (%)</label><input id="critical" type="number" value="90" min="2" max="100"></div>
+<div><label for="poll">Atualização (segundos)</label><input id="poll" type="number" value="120" min="10" max="86400"></div>
+<div><label for="cooldown">Intervalo entre alertas (segundos)</label><input id="cooldown" type="number" value="1800" min="0" max="604800"></div>
+</div>
+<p>Reserva não aloca espaço; 0 desativa somente alertas de reserva. Aplica-se aos volumes fixos, inclusive pequenos volumes de sistema. O aviso deve ser menor que o percentual crítico.</p>
+</fieldset>
+<fieldset><legend>Docker — serviço local inteiro, não o disco selecionado</legend>
+<label for="age">Idade mínima dos objetos elegíveis (dias)</label><input id="age" type="number" value="30" min="0" max="36500">
+<label><input type="checkbox">Permitir limpeza automática após alerta de limite do Docker</label>
+<label><input type="checkbox">Cache de compilação antigo e sem uso</label>
+<label><input type="checkbox">Imagens antigas sem referência e sem uso</label>
+<label><input type="checkbox">Somente contêineres parados com rótulo descartável</label>
+<p>Rótulo exigido: <code>wsl-cleaner.disposable=true</code>. Volumes e contêineres parados comuns ficam excluídos. Categorias também valem para planos manuais. Marcar categoria sozinha não ativa limpeza automática. Exclusão irreversível, possivelmente parcial.</p>
+</fieldset>
+<button type="button" class="primary" data-demo="Prévia: somente configurações globais seriam salvas; limites individuais permaneceriam intactos. Nada foi gravado.">Salvar configurações gerais</button>
+<p>Este salvamento preserva todos os limites individuais. Não executa manutenção manual. A inicialização com Windows é uma opção separada do instalador, não deste painel.</p>
+</section>
+<section role="tabpanel" id="manutencao" aria-labelledby="tab-manutencao" tabindex="0" hidden>
+<h2>Manutenção — ações manuais separadas do monitoramento</h2>
+<p class="note"><strong>Preparar não é executar.</strong> Na aplicação nativa, revise o plano completo antes de consentir. Nesta referência, nenhuma operação é executada.</p>
+<article><h3>Docker: serviço local inteiro</h3><p>Usa categorias e idade salvas. Independe do disco escolhido; não compacta arquivos VHDX.</p><button type="button" data-demo="Prévia: preparar plano Docker do serviço local, independentemente da seleção. Nenhum plano real criado.">Preparar limpeza Docker</button></article>
+<article><h3>WSL: distribuição pelo nome</h3><p>Alvo ilustrativo: Ubuntu. Somente distribuição registrada que não seja Docker. <code>apt-get clean</code> remove arquivos de pacotes baixados; pode iniciar a distribuição como root. Não remove aplicativos instalados nem arquivos pessoais.</p><button type="button" data-demo="Prévia: preparar apt-get clean para Ubuntu pelo nome, não pelo caminho VHDX. Nenhum plano real criado.">Preparar cache WSL</button></article>
+<article><h3>Compactação: caminho VHDX selecionado</h3><p>Exige administrador, diretório existente em outro volume fixo, espaço livre, disco fora de uso, identidade confirmada e cópia integral verificada. Todas as distribuições WSL e cargas Docker podem parar. Não promete espaço recuperado.</p><button type="button" data-demo="Prévia: escolher cópia de segurança e revisar compactação. Nenhuma janela ou operação nativa aberta.">Preparar compactação</button></article>
+<h3>Plano revisado — exemplo de apresentação, não autorização</h3>
+<p>Estado: nenhum plano real preparado. Na fonte nativa, o resumo crítico está em português; as etapas técnicas originais são preservadas, inclusive se estiverem em inglês. Planos têm uso único, validade de cinco minutos e verificações de segurança mantidas.</p>
+<details><summary>Exemplo de plano técnico original (inalterado)</summary><pre>ILLUSTRATIVE ONLY — NOT AN EXECUTABLE PLAN
+Target: Ubuntu
+apt-get clean</pre></details>
+<label for="consent">Confirmação exata: CLEAN ou COMPACT</label><input id="consent" type="text" autocomplete="off" spellcheck="false" aria-describedby="consent-help">
+<p id="consent-help">Os tokens de consentimento permanecem inalterados. Digitar aqui não autoriza nada.</p>
+<label><input type="checkbox">Autorizar parada de TODAS as distribuições WSL e cargas Docker (somente compactação)</label>
+<button type="button" data-demo="Referência sem execução. Na aplicação, seria obrigatório preparar e revisar um plano válido e fornecer os consentimentos exigidos.">Executar plano revisado — prévia sem execução</button>
+<p>Não interrompa a máquina durante compactação. Sair da aplicação aguarda manutenção ativa; não há cancelamento forçado. Cópias de segurança nunca são apagadas nem restauradas automaticamente.</p>
+</section>
+<section role="tabpanel" id="diagnostico" aria-labelledby="tab-diagnostico" tabindex="0" hidden>
+<h2>Diagnóstico</h2>
+<p>Dados ilustrativos. O relatório técnico fica aqui, não acima da configuração do disco.</p>
+<h3>Candidatos com medição indisponível</h3>
+<p><strong>Indisponível não significa ausente, lixo ou seguro para apagar.</strong> Pode haver erro de acesso ou recusa por segurança. Estes caminhos não entram no seletor de discos medidos. Nenhum limite salvo é removido por falta de medição.</p>
+<article><h3>Docker · candidato antigo</h3><p><code>C:\Users\UsuarioExemplo\AppData\Local\Docker\wsl\data\ext4.vhdx</code></p><p>Estado: medição indisponível (exemplo). Não apagar diretórios nem registros WSL para reduzir esta lista.</p></article>
+<article><h3>Docker · candidato alternativo</h3><p><code>C:\Users\UsuarioExemplo\AppData\Local\Docker\wsl\data\docker_data.vhdx</code></p><p>Estado: medição indisponível (exemplo).</p></article>
+<p>Várias entradas Docker não provam vários discos reais. Caminhos iguais normalizados são unidos; locais personalizados podem não ser encontrados.</p>
+<details><summary>Relatório técnico ilustrativo</summary><pre>Exemplo, sem coleta real:
+Volume C: capacidade 500 GiB · livre 160 GiB
+WSL Ubuntu: arquivo 42 GiB · limite 100 GiB
+Docker dados: arquivo 24 GiB · limite 100 GiB
+Alocação física e uso no convidado: desconhecidos
+Candidatos sem medição: 2</pre></details>
+</section>
+<p id="feedback" role="status" aria-live="polite" aria-atomic="true">Referência pronta. Nenhuma configuração será gravada.</p>
+<footer><p>Na aplicação: X oculta na bandeja quando disponível; o menu da bandeja reabre o painel. Sair aguarda manutenção ativa. Esta página não implementa bandeja nem tarefas em segundo plano.</p><p>Direção única: controles simples, Consolas, preto e verde suave. HTML apenas como referência de desenho; a implementação permanece C++17/Win32, sem navegador ou dependências novas.</p></footer>
+</main>
+<script>
+'use strict';
+const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
+function activate(tab) {
+  for (const item of tabs) {
+    const selected = item === tab;
+    item.setAttribute('aria-selected', String(selected));
+    item.tabIndex = selected ? 0 : -1;
+    document.getElementById(item.getAttribute('aria-controls')).hidden = !selected;
+  }
+  tab.focus();
+}
+tabs.forEach((tab, index) => {
+  tab.addEventListener('click', () => activate(tab));
+  tab.addEventListener('keydown', event => {
+    let next;
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+    if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+    if (event.key === 'Home') next = 0;
+    if (event.key === 'End') next = tabs.length - 1;
+    if (next !== undefined) { event.preventDefault(); activate(tabs[next]); }
+  });
+});
+const feedback = document.getElementById('feedback');
+const budget = document.getElementById('budget');
+const disk = document.getElementById('disk');
+let previous = disk.value;
+let dirty = false;
+budget.addEventListener('input', () => {
+  dirty = budget.value !== '100';
+  document.getElementById('dirty').textContent = dirty ? 'Alteração não salva — exemplo.' : 'Sem alterações no exemplo.';
+});
+disk.addEventListener('change', () => {
+  if (dirty && !window.confirm('Descartar o limite alterado deste disco? Apenas demonstração; nada foi salvo.')) {
+    disk.value = previous;
+    return;
+  }
+  previous = disk.value;
+  dirty = false;
+  budget.value = '100';
+  document.getElementById('dirty').textContent = 'Sem alterações no exemplo.';
+  document.getElementById('path').value = disk.value === 'wsl'
+    ? 'C:\\Users\\UsuarioExemplo\\AppData\\Local\\Packages\\DistribuicaoUbuntuExemplo\\LocalState\\ext4.vhdx'
+    : 'C:\\Users\\UsuarioExemplo\\AppData\\Local\\Docker\\wsl\\disk\\docker_data.vhdx';
+  document.getElementById('length').textContent = disk.value === 'wsl' ? '42 GiB' : '24 GiB';
+  feedback.textContent = 'Disco ilustrativo selecionado. Não houve inventário nem gravação.';
+});
+document.getElementById('copy').addEventListener('click', async () => {
+  const path = document.getElementById('path');
+  try {
+    await navigator.clipboard.writeText(path.value);
+    feedback.textContent = 'Caminho ilustrativo copiado.';
+  } catch (_) {
+    path.focus(); path.select();
+    feedback.textContent = 'Cópia automática indisponível neste navegador. Caminho selecionado; use Ctrl+C.';
+  }
+});
+document.querySelectorAll('[data-demo]').forEach(button => {
+  button.addEventListener('click', () => { feedback.textContent = button.dataset.demo; });
+});
+</script>
+</body>
+</html>

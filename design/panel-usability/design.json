@@ -1,0 +1,85 @@
+{
+  "feature": "odd/tasks/panel-usability.md",
+  "title": "Painel nativo simples em português",
+  "brief": "Reorganizar o painel Win32 em quatro abas, com caminho completo, salvamento por escopo e guia integral em português; esta prévia não é dependência do aplicativo.",
+  "artboards": [{"file": "01-tabs.html", "title": "Abas nativas em português", "tradeoff": "Prioriza o disco e seu limite; configurações globais, manutenção e diagnóstico exigem trocar de aba.", "width": 1100, "height": 820}],
+  "language": "pt-BR",
+  "status": "referência visual; painel nativo compilado e verificações ocultas aprovadas pelo responsável; consulte o ZIP desta revisão no repositório",
+  "entry": "01-tabs.html",
+  "directionCount": 1,
+  "specs": ["S1", "S2", "S4", "S5"],
+  "runtime": "C++17/Win32; HTML não é dependência nem interface de execução",
+  "assets": "Autocontido, sem fontes remotas, CSS externo, imagens ou dependências",
+  "brandEvidence": {
+    "source": "native/src/app.cpp: Controls e WM_CTLCOLORSTATIC/WM_CTLCOLOREDIT",
+    "font": "Consolas com alternativas monoespaçadas do sistema",
+    "background": "#000000",
+    "foreground": "#d2f0d2",
+    "foreignTokens": false
+  },
+  "tabs": [
+    {"label": "Discos", "scope": "Seleção de discos medidos, caminho separado com quebra e cópia, comprimento do arquivo, limite de alerta, estado e salvamento individual"},
+    {"label": "Configurações gerais", "scope": "Reserva, percentuais, intervalos e adesão por categoria Docker; salvamento preserva limites individuais"},
+    {"label": "Manutenção", "scope": "Planos manuais Docker/WSL/compactação, resumo crítico, plano técnico original e consentimentos separados"},
+    {"label": "Diagnóstico", "scope": "Candidatos sem medição, incertezas e relatório técnico sem poluir a aba Discos"}
+  ],
+  "data": "Todos os valores e caminhos são ilustrativos; nenhuma coleta do computador",
+  "interactions": {
+    "tabs": "Setas esquerda/direita, Home/End, clique; Tab alcança a aba ativa e seus controles",
+    "copy": "Copia somente o caminho ilustrativo por ação explícita; em caso de recusa seleciona o texto para Ctrl+C",
+    "selection": "Demonstra confirmação antes de descartar limite alterado",
+    "saveAndMaintenance": "Somente mensagens locais de prévia; sem persistência, processos ou operações nativas"
+  },
+  "accessibility": [
+    "Idioma do documento pt-BR",
+    "Relações tablist/tab/tabpanel e aria-selected com foco itinerante",
+    "Painéis inativos hidden, sem controles focáveis expostos",
+    "Foco visível com contorno de três pixels",
+    "Rótulos explícitos e instruções associadas",
+    "Estados textuais independentes de cor e mensagens em região de status",
+    "Texto verde claro sobre preto, inclusive nos controles; ação principal em cores invertidas",
+    "Layout flexível, caminho com quebra e texto selecionável"
+  ],
+  "nextStage": {
+    "gate": "Responsável observou job35 código 0: MSVC 19.44, CTest 3/3, estrutura 6/6, scripts/API 16/16 com smoke oculto real e instalação isolada 4/4. Falha de inicialização (job33) e RED de reentrância (job34) resolvidos; acompanhamento estático independente encerrou bloqueio. Comparação CLI contra b90390f em quatro modos confirmou código/stdout/stderr exatos",
+    "structuralChecks": "native/tests/panel_checks.ps1: seis regras aprovadas pelo responsável antes deste fechamento documental; fonte/documentação somente, não testes GUI. Nova checagem documental final permanece com o responsável",
+    "implementedSeams": [
+      "Layout(width, height): dimensões derivadas da área cliente",
+      "DiskPath: campo EDIT multilinha somente leitura, com ação de cópia Unicode",
+      "SaveDiskBudget e DiskBudgetCandidate: mesclar somente o limite selecionado sobre a configuração atual",
+      "SaveGlobalSettings e GlobalSettingsCandidate: mesclar somente campos globais, preservando todos os limites",
+      "RefreshDiskChoices: filtrar VirtualDisk.measured e mapear índices com CB_SETITEMDATA; não recarregar edições nem invalidar plano só por atualização",
+      "ChangeDiskSelection: confirmar descarte de budget_dirty antes de trocar identidade",
+      "SelectedDisk: usar CB_GETITEMDATA após filtragem",
+      "RenderDiagnostics: separar candidatos sem medição e explicar que indisponível não prova ausência"
+    ],
+    "hiddenSmokePlan": [
+      "Manter stdout, stderr e código de saída públicos de --smoke-test inalterados",
+      "HiddenPanelChecks redimensiona controles ocultos e valida GetClientRect/GetWindowRect/MapWindowPoints em 760x720, 980x820 e 1280x980; seletor ocupa largura útil, caminho Unicode completo é separado e EM_GETLINECOUNT confirma quebra",
+      "Validar presença, seleção e visibilidade das quatro abas nativas sem abrir janela residente; foco real e navegação por teclado NÃO são verificados pelo smoke oculto",
+      "Exercitar candidatos de configuração somente em memória: salvar limite preserva globais e outros IDs; salvar globais preserva todos os limites, inclusive IDs não vistos",
+      "Validar GiB com conversão exata verificada e preservação dos bytes originais quando exibição não muda",
+      "Simular atualização e lista filtrada em memória; conferir preservação de edição/plano e limpeza dos consentimentos na troca confirmada. Nova regressão injeta atualização durante o prompt após capturar o próximo ID, tanto com reordenação quanto com destino desaparecido, antes de aplicar a resposta; RED runtime observado pelo responsável. Correção resolve o ID no inventário atualizado e sincroniza o seletor; destino desaparecido preserva seleção anterior, edição e plano. GREEN observado pelo responsável no job35, incluindo ambos os cenários de reentrância",
+      "HiddenPanelChecks executado com sucesso pelo responsável sem timer, mutex residente, bandeja, configuração em disco, coleta, processos Docker/WSL ou manutenção"
+    ],
+    "preservation": "Manter 16 verificações existentes de shell/API e todos os contratos públicos; aprovação, parada, cópia e proteções do backend inalteradas",
+    "encoding": "Leitura PowerShell explicitamente UTF8 e BOM nos scripts com acentos; /utf-8 já herdado pelo alvo MSVC via CMake existente",
+    "scope": "Fonte nativa, documentação e checks atualizados sem execução de compilação, teste, captura nativa ou operações de ciclo de vida pelo autor"
+  },
+  "localCandidate": {
+    "path": "packages/windows-x64/WslCleaner-native-v1.zip",
+    "executableBytes": 564224,
+    "executableKiB": 551,
+    "zipBytes": 264491,
+    "sha256": "e4511527e30747025d2daeff227cef43e1626e15d0af497500ffc45b8ad1fdbf",
+    "publication": "Este manifesto descreve o conteúdo da revisão; confira a disponibilidade e a soma do ZIP no repositório",
+    "packaging": "Job36 aprovado após tradução do README.txt para português com UTF-8/BOM; sem mudanças de comandos ou guardas",
+    "provenance": "11 insumos idênticos à cópia final Windows, executável compilado idêntico ao compactado, 7 entradas e 6 hashes internos, 3 scripts idênticos, importações x64 somente do Windows",
+    "limitations": "Foco e navegação reais por teclado, DPI, qualidade visual, notificações reais e manutenção em produção não foram verificados em execução"
+  },
+  "canvas": {
+    "owner": "Responsável principal",
+    "projectLocalOnly": true,
+    "instruction": "A tentativa de abertura automática não encontrou o projeto porque a ferramenta está vinculada ao diretório pai. A referência autocontida permanece em design/panel-usability; não usa estilos de outros projetos nem exige navegador para executar o aplicativo nativo."
+  }
+}
