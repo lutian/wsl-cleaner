@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Build a native-only portable/installable distribution from a verified executable.
 .DESCRIPTION
@@ -28,24 +28,32 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Install.ps1" -Exec
 if errorlevel 1 pause
 '@ | Set-Content -LiteralPath (Join-Path $out 'Install.cmd') -Encoding ASCII
 @'
-WSL Cleaner native Windows application
+WSL Cleaner — aplicativo nativo para Windows
 
-Portable: double-click WslCleaner.exe. Close hides to tray; use Exit to quit.
-Install: double-click Install.cmd (per user, no administrator required).
-Optional startup: run Install.cmd -EnableStartup during first installation.
-Uninstall: PowerShell -ExecutionPolicy Bypass -File Uninstall.ps1 in the installed folder.
+Sem instalar: abra WslCleaner.exe. Fechar no X oculta na bandeja; use Sair para encerrar.
+Para instalar: abra Install.cmd (instalação por usuário, sem exigir administrador).
+Inicialização opcional: execute Install.cmd -EnableStartup na primeira instalação.
+Para desinstalar: PowerShell -ExecutionPolicy Bypass -File Uninstall.ps1 na pasta instalada.
 
-No extra runtime installation is needed. Maintenance is opt-in. Budgets are advisory.
-Do not run compaction until you understand its all-WSL/Docker shutdown and backup requirements.
-Compaction requires explicit administrator launch and a backup on another fixed volume.
-Ordinary stopped containers and volumes are not automatically deleted.
-No guaranteed amount of recovered disk space is promised.
+Extraia o ZIP em uma pasta local do Windows. Não execute o instalador por um caminho
+UNC de rede ou do WSL. Uma instalação existente nunca é sobrescrita automaticamente.
+Para atualizar, saia do aplicativo, desinstale a versão anterior e instale a nova.
+Configurações, backups e arquivos desconhecidos são preservados na desinstalação.
 
-Extract this archive into a local Windows directory before installation.
-Do not run the installer from a network/WSL UNC path. Existing installs are never overwritten.
-Settings and backups are preserved during uninstall. See the source repository for details:
+Aba Discos: escolha o disco, confira o caminho completo e salve somente seu limite de alerta.
+Aba Configurações gerais: salve separadamente os intervalos, percentuais e opções globais.
+Aba Manutenção: prepare e revise um plano antes de confirmar qualquer operação.
+Aba Diagnóstico: detalhes técnicos e caminhos candidatos indisponíveis, não discos extras confirmados.
+
+Não é necessário instalar runtime adicional. Os limites são alertas, não cotas rígidas.
+A limpeza automática vem desligada. Containers comuns e volumes não são apagados automaticamente.
+Compactar exige abrir explicitamente como administrador, autorizar a parada de todo o WSL/Docker
+e ter backup verificado em outro volume fixo. Não interrompa a operação nem reinicie os serviços.
+Não há promessa de tamanho final mínimo ou de quantidade de espaço recuperado.
+
+O README completo, em português, explica cada controle e as proteções:
 https://github.com/lutian/wsl-cleaner
-'@ | Set-Content -LiteralPath (Join-Path $out 'README.txt') -Encoding ASCII
+'@ | Set-Content -LiteralPath (Join-Path $out 'README.txt') -Encoding UTF8
 Get-ChildItem -LiteralPath $out -File | ForEach-Object {
     $hash=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $($_.Name)"
