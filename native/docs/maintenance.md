@@ -5,6 +5,12 @@ isolated native Windows API tests, not by operating on working WSL/Docker data.
 
 ## Native API verification
 
+Scoped correction: parent observed job23 RED exit 1, 15/17 passing, with only
+optional-platform and WSL-byte-decoding groups failing. Helpers are now wired;
+post-change GREEN is pending. Subtype 3 remains dynamic (2 fixed, 4 differencing),
+pinned by the production helper and disposable fixture per Microsoft:
+https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/ns-virtdisk-get_virtual_disk_info
+
 Parent observed the status-contract RED at **12/14 PASS, exit 1** (job19), with
 only `native-status-success` and `native-status-failures` failing as intended.
 The native API switch is now implemented: synchronous `CompactVirtualDisk`,
@@ -179,7 +185,7 @@ traversal; cached Authenticode trust must name publisher exactly `Docker Inc` or
 Only official local `docker_engine` / `dockerDesktopLinuxEngine` named pipes are
 accepted. The server PID must belong to the pinned, trusted installed
 `resources\\com.docker.backend.exe`. The selected context/endpoint, backend PID
-and Linux server platform/version are pinned to service lifetime; a change requires
+and Linux server version are pinned to service lifetime; platform display name is optional. A change requires
 a new service and new approval. All `DOCKER_*` and `BUILDX_*` environment overrides
 are rejected, including TLS/config/context overrides. No daemon start is issued.
 
@@ -198,7 +204,9 @@ shuts down/compacts anything.
 `CreateProcessW` receives an explicit executable and correctly escaped, always-
 quoted Windows argv. Untrusted data is never shell code. NUL/oversized arguments
 are rejected. Restricted inherited handle lists and kill-on-close jobs constrain
-children. Combined output is capped at 1 MiB and must decode as UTF-8. Read-only
+children. Combined output is capped at 1 MiB. Docker remains strict UTF-8. Only
+trusted system wsl.exe output recognizes UTF16LE BOM/leading LE units or valid
+forwarded UTF-8; malformed sequences and decoded NULs are refused. Read-only
 CLI commands get 15 seconds; prune/apt/clean-stop/WSL-shutdown get 120 seconds;
 job cleanup waits up to five additional seconds for the direct child. Source
 copy/readback checks a six-hour transaction deadline between chunks. Windows

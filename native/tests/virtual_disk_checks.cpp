@@ -7,6 +7,7 @@
 #include <objbase.h>
 #include <iostream>
 #include <string>
+#include "../include/maintenance_internal.hpp"
 
 struct Handle {
     HANDLE value=INVALID_HANDLE_VALUE;
@@ -54,6 +55,11 @@ int main() {
     ULONG bytes=sizeof(info);
     status=GetVirtualDiskInformation(disk.value,&bytes,&info,nullptr);
     if(status!=ERROR_SUCCESS || info.IsLoaded) return fail("detached-state precondition",status);
+    info={}; info.Version=GET_VIRTUAL_DISK_INFO_PROVIDER_SUBTYPE; bytes=sizeof(info);
+    status=GetVirtualDiskInformation(disk.value,&bytes,&info,nullptr);
+    if(status!=ERROR_SUCCESS || info.ProviderSubtype!=3 || !wc::maintenance::IsDynamicSubtype(info.ProviderSubtype) ||
+        wc::maintenance::IsDynamicSubtype(2) || wc::maintenance::IsDynamicSubtype(4))
+        return fail("ProviderSubtype 3=dynamic (2=fixed,4=differencing)",status);
     COMPACT_VIRTUAL_DISK_PARAMETERS compact{};
     compact.Version=COMPACT_VIRTUAL_DISK_VERSION_1;
     status=CompactVirtualDisk(disk.value,COMPACT_VIRTUAL_DISK_FLAG_NONE,&compact,nullptr);

@@ -56,6 +56,60 @@ Result CompactStatus(std::uint32_t status) {
     return {false, L"CompactVirtualDisk failed (DWORD " + std::to_wstring(status) +
         L"); backup retained, no retry. Operation may be partial."};
 }
+bool ParseDockerVersion(const std::wstring& raw, std::wstring& version) {
+    version.clear();
+    if (raw.find(L'\0') != std::wstring::npos) return false;
+    auto text = raw;
+    if (!text.empty() && text.back() == L'\n') text.pop_back();
+    std::vector<std::wstring> fields;
+    for (std::size_t start = 0;;) {
+        const auto end = text.find(L'\n', start);
+        auto field = text.substr(start, end == std::wstring::npos ? end : end - start);
+        if (!field.empty() && field.back() == L'\r') field.pop_back();
+        if (field.find(L'\r') != std::wstring::npos) return false;
+        fields.push_back(field);
+        if (end == std::wstring::npos) break;
+        start = end + 1;
+    }
+    if (fields.size() != 3 || fields[0] != L"linux" || fields[1].size() > 256 || fields[2].empty() || fields[2].size() > 128) return false;
+    version = fields[2]; return true; // Platform display name is optional, not identity.
+}
+bool DecodeWslOutput(const std::string& bytes, std::wstring& output) {
+    output.clear(); std::wstring result;
+    const auto byte = [&](std::size_t i) { return static_cast<unsigned char>(bytes[i]); };
+    const bool bom = bytes.size() >= 2 && byte(0) == 0xff && byte(1) == 0xfe;
+    // Known WSL only: BOM or a leading LE Latin-1/surrogate unit signals UTF16LE.
+    const bool wide = bom || (bytes.size() > 1 && (byte(1) == 0 || (byte(1) >= 0xd8 && byte(1) <= 0xdb)));
+    if (wide && bytes.size() % 2) return false;
+    const auto append = [&](std::uint32_t cp) {
+        if (!cp || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return false;
+        if constexpr (sizeof(wchar_t) == 2) {
+            if (cp > 0xffff) { cp -= 0x10000; result += static_cast<wchar_t>(0xd800 + (cp >> 10)); result += static_cast<wchar_t>(0xdc00 + (cp & 1023)); return true; }
+        }
+        result += static_cast<wchar_t>(cp); return true;
+    };
+    for (std::size_t i = bom ? 2 : 0; i < bytes.size();) {
+        std::uint32_t cp = byte(i++);
+        if (wide) {
+            cp |= static_cast<std::uint32_t>(byte(i++)) << 8;
+            if (cp >= 0xd800 && cp <= 0xdbff) {
+                if (bytes.size() - i < 2) return false;
+                const auto low = static_cast<std::uint32_t>(byte(i)) | (static_cast<std::uint32_t>(byte(i + 1)) << 8); i += 2;
+                if (low < 0xdc00 || low > 0xdfff) return false;
+                cp = 0x10000 + ((cp - 0xd800) << 10) + low - 0xdc00;
+            }
+        } else if (cp >= 0x80) {
+            unsigned count = cp >= 0xc2 && cp <= 0xdf ? 1 : cp >= 0xe0 && cp <= 0xef ? 2 : cp >= 0xf0 && cp <= 0xf4 ? 3 : 0;
+            if (!count || bytes.size() - i < count) return false;
+            const std::uint32_t minimum = count == 1 ? 0x80 : count == 2 ? 0x800 : 0x10000;
+            cp &= count == 1 ? 31 : count == 2 ? 15 : 7;
+            while (count--) { const auto next = byte(i++); if ((next & 0xc0) != 0x80) return false; cp = (cp << 6) | (next & 63); }
+            if (cp < minimum) return false;
+        }
+        if (!append(cp)) return false;
+    }
+    output.swap(result); return true;
+}
 Engine::Engine(Adapter& adapter) : adapter_(adapter) {}
 bool Engine::Prepare(Action action, const std::wstring& target, const Config& config,
     const std::wstring& directory, Plan& output, std::wstring& error) {

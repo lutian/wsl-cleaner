@@ -188,7 +188,7 @@ bool LocalServer(const std::wstring& endpoint, Pins& backend, std::wstring& erro
 // No shell. Explicit executable, pinned installation, restricted inherited handles,
 // bounded output/deadline, suspended creation then kill-on-close job assignment.
 bool Process(const Pins& exe, const std::vector<std::wstring>& args, ULONGLONG deadline,
-    std::wstring& output, std::wstring& error, const std::string& stdin_bytes = {}, unsigned timeout_ms = 15000) {
+    std::wstring& output, std::wstring& error, const std::string& stdin_bytes = {}, unsigned timeout_ms = 15000, bool wsl_output = false) {
     if (stdin_bytes.size() > 4096) return Fail(error, L"Allowlisted tool input exceeds 4096 bytes.");
     std::wstring command = QuoteArgument(exe.path);
     for (const auto& arg : args) {
@@ -268,6 +268,10 @@ bool Process(const Pins& exe, const std::vector<std::wstring>& args, ULONGLONG d
     DWORD code = 1;
     if (!GetExitCodeProcess(process.value, &code) || code != 0)
         return Fail(error, L"Official tool returned failure. Mutation outcome may be partial; no automatic retry.");
+    if (wsl_output) {
+        if (!DecodeWslOutput(captured, output)) return Fail(error, L"Malformed redirected WSL output; operation outcome may be partial.");
+        return true;
+    }
     if (captured.find('\0') != std::string::npos) return Fail(error, L"Unexpected NUL in tool output.");
     const int count = captured.empty() ? 0 : MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, captured.data(), static_cast<int>(captured.size()), nullptr, 0);
     if (!captured.empty() && count <= 0) return Fail(error, L"Tool output was not valid UTF-8; operation outcome may be partial.");
@@ -308,7 +312,7 @@ bool OpenVhd(const std::wstring& path, Handle& disk, std::wstring& error, bool f
         return false;
     }
     GET_VIRTUAL_DISK_INFO info{}; info.Version = GET_VIRTUAL_DISK_INFO_PROVIDER_SUBTYPE; ULONG size = sizeof(info);
-    if (GetVirtualDiskInformation(disk.value, &size, &info, nullptr) != ERROR_SUCCESS || info.ProviderSubtype != 3)
+    if (GetVirtualDiskInformation(disk.value, &size, &info, nullptr) != ERROR_SUCCESS || !IsDynamicSubtype(info.ProviderSubtype))
         return Fail(error, L"Only standalone dynamically expanding VHDX disks are supported; fixed/differencing/unknown disks refused.");
     return true;
 }
@@ -420,7 +424,7 @@ bool SystemProcess(const wchar_t* name, const std::vector<std::wstring>& argumen
     if (!length || length >= 32768) return Fail(error, L"Cannot resolve a trusted Windows system tool.");
     Pins executable;
     if (!executable.Open(std::wstring(system) + L"\\" + name, false, error)) return false;
-    return Process(executable, arguments, GetTickCount64() + timeout, output, error, input, timeout);
+    return Process(executable, arguments, GetTickCount64() + timeout, output, error, input, timeout, wcscmp(name, L"wsl.exe") == 0);
 }
 class WindowsAdapter final : public Adapter {
     std::wstring endpoint_, context_, engine_;
@@ -517,10 +521,10 @@ public:
         context_ = names[0]; endpoint_ = hosts[0];
         // Unlike docker info, version does not enumerate/execute arbitrary CLI plugin metadata.
         if (!Run({L"version", L"--format", L"{{.Server.Os}}\n{{.Server.Platform.Name}}\n{{.Server.Version}}"}, output, error)) return false;
-        const auto identity = Lines(output);
-        if (identity.size() != 3 || identity[0] != L"linux" || identity[1].size() > 256 || identity[2].size() > 128 ||
-            (!engine_.empty() && engine_ != identity[1] + L":" + identity[2])) return Fail(error, L"Docker server type/version changed or is unsupported.");
-        engine_ = identity[1] + L":" + identity[2]; state.local_engine = state.local_context = true;
+        std::wstring version;
+        if (!ParseDockerVersion(output, version) || (!engine_.empty() && engine_ != version))
+            return Fail(error, L"Docker server type/version changed or is unsupported.");
+        engine_ = version; state.local_engine = state.local_context = true;
         if (!Run({L"container", L"ls", L"--quiet", L"--no-trunc"}, output, error)) return false;
         state.any_running_containers = !Lines(output).empty();
         for (const auto& id : Lines(output)) if (!HexId(id)) return Fail(error, L"Docker running-container IDs are malformed.");

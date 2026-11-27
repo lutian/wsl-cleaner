@@ -29,6 +29,11 @@ std::vector<std::wstring> CleanupArguments(ObjectKind, unsigned minimum_age_days
 std::vector<std::wstring> AptArguments(const std::wstring& registered_name);
 // Locale-independent DWORD result contract shared by the native API and fakes.
 Result CompactStatus(std::uint32_t status);
+// Microsoft ProviderSubtype: 2=fixed, 3=dynamic, 4=differencing.
+// https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/ns-virtdisk-get_virtual_disk_info
+constexpr bool IsDynamicSubtype(std::uint32_t value) { return value == 3; }
+bool ParseDockerVersion(const std::wstring& text, std::wstring& version);
+bool DecodeWslOutput(const std::string& bytes, std::wstring& output);
 class Adapter {
 public:
     virtual ~Adapter() = default;

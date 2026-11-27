@@ -2,6 +2,10 @@
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
+#ifdef _WIN32
+#define NOMINMAX
+#include <windows.h>
+#endif
 using namespace wc;
 using namespace wc::maintenance;
 namespace {
@@ -277,15 +281,84 @@ void UnicodeCompactPolicy() {
     for (const auto& event : f.effects) if (event.find(L"journal:") != 0) operations.push_back(event);
     Require(operations == std::vector<std::wstring>{L"stop-docker", L"shutdown-wsl", L"exclusive-source", L"backup-sha256-manifest", L"compact-handoff"}, "Unicode support does not weaken existing safety ordering");
 }
+void ProviderSubtype() {
+    Require(IsDynamicSubtype(3) && !IsDynamicSubtype(2) && !IsDynamicSubtype(4), "Microsoft subtype 3 is dynamic; 2 fixed and 4 differencing are refused");
+}
+void OptionalDockerPlatform() {
+    std::wstring version = L"stale";
+    for (const auto& text : {L"linux\n\n27.5.1\n", L"linux\nDocker Desktop\n27.5.1\n", L"linux\r\n\r\n27.5.1\r\n", L"linux\n\n27.5.1"})
+        Require(ParseDockerVersion(text, version) && version == L"27.5.1", "optional platform must not change the mandatory Linux/version identity");
+    for (const auto& text : {L"windows\nDocker Desktop\n27.5.1\n", L"linux\n\n\n", L"linux\n27.5.1\n", L"linux\n\n27.5.1\nextra\n"}) {
+        version = L"stale";
+        Require(!ParseDockerVersion(text, version) && version.empty(), "malformed/non-Linux identity must clear output and fail");
+    }
+    for (const auto& text : {std::wstring(L"linux\n\n27\0x", 12), L"linux\n" + std::wstring(257, L'x') + L"\n27\n", L"linux\n\n" + std::wstring(129, L'x')})
+        Require(!ParseDockerVersion(text, version) && version.empty(), "identity rejects NUL and preserves field bounds");
+}
+void WslByteDecoding() {
+    const std::wstring expected = L"Opera\u00e7\u00e3o conclu\u00edda.\r\n";
+    std::string little;
+    for (wchar_t c : expected) { little += static_cast<char>(c & 255); little += static_cast<char>((static_cast<unsigned>(c) >> 8) & 255); }
+    const std::string bom("\xff\xfe", 2);
+    std::wstring output = L"stale";
+    for (const auto& bytes : {bom + little, little, std::string(u8"Opera\u00e7\u00e3o conclu\u00edda.\r\n")})
+        Require(DecodeWslOutput(bytes, output) && output == expected, "WSL accepts Portuguese UTF16LE BOM/no-BOM and forwarded valid UTF8 without loss");
+    Require(DecodeWslOutput("", output) && output.empty(), "successful empty WSL stdout stays successful");
+    for (const auto& bytes : {std::string("\xc0\xaf", 2), std::string("\xed\xa0\x80", 3), std::string("\xf4\x90\x80\x80", 4), std::string("\xe2\x82", 2),
+            std::string("a\0b", 3), bom + "a", std::string("\xff\xfe\0\xd8", 4), std::string("\xff\xfe\0\xdc", 4), bom + std::string("a\0\0\0", 4)}) {
+        output = L"stale";
+        Require(!DecodeWslOutput(bytes, output) && output.empty(), "malformed UTF8/UTF16, odd bytes and decoded NUL must fail without partial output");
+    }
+}
+#ifdef _WIN32
+void RedirectedWslBytes() {
+    wchar_t executable[32768]{};
+    Require(GetModuleFileNameW(nullptr, executable, 32768)!=0,"fixture executable identity");
+    SECURITY_ATTRIBUTES sa{sizeof(sa),nullptr,TRUE}; HANDLE read=nullptr,write=nullptr;
+    Require(CreatePipe(&read,&write,&sa,0)!=0,"fixture pipe creation");
+    SetHandleInformation(read,HANDLE_FLAG_INHERIT,0);
+    STARTUPINFOW start{}; start.cb=sizeof(start); start.dwFlags=STARTF_USESTDHANDLES;
+    start.hStdOutput=write; start.hStdError=write; start.hStdInput=GetStdHandle(STD_INPUT_HANDLE);
+    PROCESS_INFORMATION process{};
+    std::wstring command=QuoteArgument(executable)+L" --emit-utf16";
+    const bool launched=CreateProcessW(executable,command.data(),nullptr,nullptr,TRUE,
+        CREATE_NO_WINDOW,nullptr,nullptr,&start,&process)!=0;
+    CloseHandle(write);
+    if(!launched) { CloseHandle(read); Require(false,"fixture child launch"); }
+    const DWORD wait=WaitForSingleObject(process.hProcess,10000);
+    if(wait!=WAIT_OBJECT_0) TerminateProcess(process.hProcess,1); // Owned disposable test child only.
+    DWORD code=1,count=0; GetExitCodeProcess(process.hProcess,&code);
+    char buffer[128]{}; const bool captured=ReadFile(read,buffer,sizeof(buffer),&count,nullptr)!=0;
+    CloseHandle(read); CloseHandle(process.hThread); CloseHandle(process.hProcess);
+    std::wstring decoded;
+    Require(wait==WAIT_OBJECT_0 && code==0 && captured &&
+        DecodeWslOutput(std::string(buffer,count),decoded) && decoded==L"a\u00e7\u00e3o\n",
+        "redirected native UTF16LE child output must decode without loss");
+}
+#endif
 } // namespace
-int main() {
+int main(int argc, char** argv) {
+#ifdef _WIN32
+    if(argc==2 && std::string(argv[1])=="--emit-utf16") {
+        const wchar_t text[]=L"a\u00e7\u00e3o\n"; DWORD written=0;
+        return WriteFile(GetStdHandle(STD_OUTPUT_HANDLE),text,sizeof(text)-sizeof(wchar_t),&written,nullptr)
+            && written==sizeof(text)-sizeof(wchar_t) ? 0:1;
+    }
+#else
+    (void)argc; (void)argv;
+#endif
     struct Test { const char* name; void (*run)(); };
     const Test tests[] = {{"quoting", Quotes}, {"exact-scoped-vectors", CommandVectors}, {"issuance", Issuance},
         {"tampering", Tampering}, {"expiry-settings-lock", ExpirySettingsLock}, {"opt-ins", OptIns},
         {"docker-refusals", DockerFailures}, {"manual-apt", ManualApt}, {"compact-ordering", CompactOrdering},
         {"compact-refusals", CompactFailures}, {"honest-compactor-refusal", HonestCompactorRefusal},
         {"native-status-success", NativeStatusSuccess}, {"native-status-failures", NativeStatusFailures},
-        {"unicode-compact-policy", UnicodeCompactPolicy}};
+        {"unicode-compact-policy", UnicodeCompactPolicy}, {"provider-subtype", ProviderSubtype},
+        {"optional-docker-platform", OptionalDockerPlatform}, {"wsl-byte-decoding", WslByteDecoding}
+#ifdef _WIN32
+        , {"redirected-native-utf16-child", RedirectedWslBytes}
+#endif
+    };
     unsigned failed = 0;
     for (const auto& test : tests) {
         try { test.run(); std::cout << "PASS " << test.name << '\n'; }
