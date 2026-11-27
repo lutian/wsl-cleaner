@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 Parse/structural checks only; optionally exercise documented non-maintenance CLI modes.
 .DESCRIPTION
@@ -29,10 +29,10 @@ foreach ($name in $scripts) {
         Require ($errors.Count -eq 0) ($errors | Out-String)
     }
 }
-$install = Get-Content -LiteralPath (Join-Path $native 'packaging\Install.ps1') -Raw
-$uninstall = Get-Content -LiteralPath (Join-Path $native 'packaging\Uninstall.ps1') -Raw
-$common = Get-Content -LiteralPath (Join-Path $native 'packaging\Packaging.Common.ps1') -Raw
-$app = Get-Content -LiteralPath (Join-Path $native 'src\app.cpp') -Raw
+$install = Get-Content -LiteralPath (Join-Path $native 'packaging\Install.ps1') -Raw -Encoding UTF8
+$uninstall = Get-Content -LiteralPath (Join-Path $native 'packaging\Uninstall.ps1') -Raw -Encoding UTF8
+$common = Get-Content -LiteralPath (Join-Path $native 'packaging\Packaging.Common.ps1') -Raw -Encoding UTF8
+$app = Get-Content -LiteralPath (Join-Path $native 'src\app.cpp') -Raw -Encoding UTF8
 Test-Rule 'Installer refuses existing destinations and startup is explicit' {
     Require ($install.Contains('[switch] $EnableStartup')) 'Missing opt-in startup switch.'
     Require ($install.Contains('Destination already exists; refusing overwrite')) 'Missing destination refusal.'
@@ -75,7 +75,7 @@ Test-Rule 'WSL apt plan uses distribution name, not budget path identity' {
     Require ($prepare.Contains('target=disk->path;')) 'Compaction must retain the selected VHDX path.'
 }
 Test-Rule 'WSL classification agrees between inventory and apt UI' {
-    $core = Get-Content -LiteralPath (Join-Path $native 'src\core.cpp') -Raw
+    $core = Get-Content -LiteralPath (Join-Path $native 'src\core.cpp') -Raw -Encoding UTF8
     $producer = [regex]::Match($core, 'docker\s*\?\s*L"Docker"\s*:\s*L"([^"]+)"')
     $consumer = [regex]::Match($app, 'disk->kind\s*!=\s*L"([^"]+)"')
     Require ($producer.Success -and $consumer.Success) 'Cannot locate producer/consumer WSL classification.'
@@ -86,18 +86,18 @@ Test-Rule 'Native UI uses shared API and explicit consent' {
         Require ($app.Contains($needle)) "Missing UI contract: $needle"
     }
     Require ($app -notmatch '#using|System::|WebView|ShellExecute') 'Unexpected managed/browser/auto-elevation dependency.'
-    Require ($app.Contains('physical allocation and guest usage UNKNOWN')) 'Measurement uncertainty undisclosed.'
+    Require ($app.Contains('alocação física e uso no convidado desconhecidos')) 'Measurement uncertainty undisclosed.'
 }
 Test-Rule 'Background work, lifetime and automation guards are explicit' {
     foreach ($needle in @('std::thread', 'PostMessageW(window,Finished', 'app.worker.join()', 'if(app.busy || app.closing) return;', 'app.auto_attempted=true; app.auto_last=now;', 'std::max(config.cooldown_seconds,60U)', 'automation && config.auto_cleanup && docker_alert', 'if(!app.valid)', 'ERROR_ALREADY_EXISTS', 'GetTokenInformation')) {
         Require ($app.Contains($needle)) "Missing guard: $needle"
     }
-    Require ($app.Contains('Existing store will not be overwritten automatically.')) 'Missing corrupt-store disclosure.'
+    Require ($app.Contains('O arquivo existente não será sobrescrito automaticamente.')) 'Missing corrupt-store disclosure.'
 }
 Test-Rule 'Public smoke path excludes resident initialization' {
     Require ($app.Contains('app.smoke=option==L"--smoke-test"')) 'Smoke mode not public.'
     Require ($app.Contains('if(!app.smoke)')) 'Smoke settings/mutex guard missing.'
-    Require ($app.Contains('if(app.smoke) { Print(')) 'Smoke must finish before resident branch.'
+    Require ($app.Contains('if(app.smoke) { HiddenPanelChecks(); Print(')) 'Smoke must validate hidden controls and finish before resident branch.'
     Require ($app.Contains('no tray, polling or maintenance.')) 'Smoke result missing.'
 }
 if (-not [string]::IsNullOrEmpty($Executable)) {
