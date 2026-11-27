@@ -22,7 +22,7 @@ scratch=$(mktemp -d /tmp/wsl-cleaner-core-checks.XXXXXX) && g++ -std=c++17 -Wall
 
 The executable returns 1 when any named check fails, 0 otherwise; stdout contains
 PASS lines and the final `N passed; N failed` count, stderr contains individual
-FAIL diagnostics. It has 18 portable check groups and two additional Windows-only
+FAIL diagnostics. It has 22 portable check groups and two additional Windows-only
 config groups. The parent owns the command-created scratch directory and cleanup.
 No build products are written in the repository.
 
@@ -99,9 +99,16 @@ allocated blocks, guest filesystem utilization or recoverable bytes.
 
 ## Windows metadata inventory
 
-`Collect` enumerates fixed volumes, deduplicated by volume identity (not drive
-letters), obtains capacity and actual total free bytes with
-`GetDiskFreeSpaceExW`, and uses a mount path as display label when available.
+`Collect` enumerates mounted fixed volumes, deduplicated by volume identity (not
+drive letters), including both drive-letter and folder mounts. It queries mount
+paths once with a bounded 32768-wchar buffer and uses the first path as the label.
+A successful empty mount list silently omits the volume without querying space.
+A failed lookup also omits it, adding `Host mount paths unavailable: ` followed by
+the volume identity; neither case can create a reserve alert. Small or system
+volumes are still included if mounted. Capacity and actual total free bytes come
+from `GetDiskFreeSpaceExW` queried by volume GUID, using total free bytes rather
+than caller-available bytes. Deterministic callback checks exercise this same
+collection helper and `AlertEngine`, without enumerating real volumes.
 Unknown capacity remains zero in the API and must display as unknown, not as a
 measured empty disk. It enumerates the current user's HKCU Lxss distribution keys,
 requires Version=2, reads DistributionName/BasePath/VhdFileName and defaults only

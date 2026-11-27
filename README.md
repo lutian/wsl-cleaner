@@ -50,7 +50,7 @@ Revise o código e não contorne as políticas de segurança da sua organizaçã
 
 | Recurso | Comportamento |
 |---|---|
-| Inventário | Volumes fixos do computador, registros WSL2 do usuário atual e caminhos conhecidos do Docker Desktop |
+| Inventário | Volumes fixos montados do computador (letras ou pastas), registros WSL2 do usuário atual e caminhos conhecidos do Docker Desktop |
 | Limites de alerta | Limites indicativos por disco, percentuais de aviso/crítico e reserva livre no computador |
 | Monitoramento | Leituras de metadados em segundo plano, alertas na bandeja, intervalo entre alertas e histerese de recuperação |
 | Configurações | Persistência validada; arquivos corrompidos não são sobrescritos automaticamente |
@@ -128,7 +128,7 @@ Com limite de 100 GiB, aviso em 80% e crítico em 90%, os limiares são 80 e 90 
 
 | Campo | Significado e valores válidos |
 |---|---|
-| `Reserva livre (GiB; 0 desativa)` | Espaço livre mínimo desejado em **cada volume fixo** monitorado, inclusive pequenos volumes de sistema. Não aloca espaço nem é reserva exclusiva do VHDX escolhido. Padrão: 20 GiB. `0` desativa somente alertas de reserva. Avisa abaixo da reserva; crítico na metade ou menos. Usa a mesma conversão GiB exata do limite individual. |
+| `Reserva livre (GiB; 0 desativa)` | Espaço livre mínimo desejado em **cada volume fixo montado** monitorado, por letra ou pasta. Volumes sem ponto de montagem não entram no inventário; volumes pequenos ou de sistema continuam incluídos se montados. Não aloca espaço nem é reserva exclusiva do VHDX escolhido. Padrão: 20 GiB. `0` desativa somente alertas de reserva. Avisa abaixo da reserva; crítico na metade ou menos. Usa a mesma conversão GiB exata do limite individual. |
 | `Aviso (%)` | Percentual do limite salvo: 1–99, estritamente menor que crítico. Padrão: `80`. |
 | `Crítico (%)` | Maior que aviso e no máximo 100. Padrão: `90`. |
 | `Atualização (segundos)` | Entre leituras: 10–86400. Padrão: `120`. Trabalho já ativo não se sobrepõe ao próximo. |
@@ -197,7 +197,7 @@ Docker nem registros WSL para reduzir a lista. Locais personalizados podem não 
 | Chave técnica no relatório original | Significado |
 |---|---|
 | `Observed` | Instante da leitura em segundos Unix. |
-| `Host`, `capacity`, `free` | Volume Windows, capacidade e bytes livres. `Volume{...}` pode ser pequeno volume de sistema. |
+| `Host`, `capacity`, `free` | Volume Windows fixo montado, identificado pelo primeiro caminho de montagem (letra ou pasta), capacidade e bytes livres. Volumes sem montagem são omitidos; falha ao consultar montagens gera uma nota, não um alerta de reserva. |
 | `Disk`, `kind`, `path` | Nome, classificação WSL/Docker e caminho VHDX. |
 | `logical` | Comprimento do arquivo em bytes, não uso no convidado nem espaço recuperável. |
 | `budget`, `unset` | Limite salvo ou limite individual não definido. |

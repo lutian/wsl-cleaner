@@ -53,8 +53,10 @@ comprimento VHDX de alocação física, uso no convidado e espaço recuperável 
 - Percentuais, intervalos e idade são inteiros. `ValidateConfig` continua autoridade
   dos intervalos: atualização 10–86400 s; aviso < crítico, 1–100%; intervalo entre
   alertas 0–604800 s; idade 0–36500 dias. Erros técnicos originais podem estar em inglês.
-- Reserva vale para cada volume fixo do computador, inclusive pequenos volumes de
-  sistema; não aloca espaço. `0` desativa somente alertas de reserva. Limites são
+- Reserva vale para cada volume fixo montado do computador, por letra ou pasta;
+  volumes pequenos ou de sistema continuam incluídos se montados. Volumes sem
+  montagem são omitidos; falha na consulta de montagens gera nota, não alerta de
+  reserva. Não aloca espaço. `0` desativa somente alertas de reserva. Limites são
   indicativos, nunca cotas rígidas.
 
 `RefreshDiskChoices` lista somente `VirtualDisk.measured`, com dados de item que mapeiam

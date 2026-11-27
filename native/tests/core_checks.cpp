@@ -1,4 +1,6 @@
 #include "wsl_cleaner.hpp"
+#include "host_inventory_internal.hpp"
+#include <algorithm>
 #include <functional>
 #include <iostream>
 #include <iterator>
@@ -226,6 +228,84 @@ int main() {
         One(e.Evaluate(s, c, 1001), L"budget:d:\\data.vhdx",
             L"Budget critical: Other (90 / 100 B).", true);
         Require(e.Evaluate(s, c, 1001).empty(), "independent cooldown not recorded");
+    });
+    test("unmounted fixed volume cannot enter host inventory or alert", [] {
+        wc::Snapshot s; s.observed = 1000;
+        unsigned mounts = 0, spaces = 0;
+        wc::internal::CollectMountedHost(s, L"\\\\?\\Volume{hidden}\\",
+            [&](wchar_t* paths, std::size_t size) {
+                ++mounts;
+                Require(size == 32768, "mount query must use bounded full buffer");
+                paths[0] = paths[1] = L'\0';
+                return true;
+            }, [&](std::uint64_t& total, std::uint64_t& free) {
+                ++spaces; total = 1024 * 1024 * 1024; free = 128344064;
+                return true;
+            });
+        wc::AlertEngine e;
+        Require(e.Evaluate(s, {}, 1000).empty(), "unmounted volume emitted false reserve alert");
+        Require(s.hosts.empty() && s.notes.empty(), "unmounted volume was not silently omitted");
+        Require(mounts == 1 && spaces == 0, "unmounted volume queried space");
+        Require(wc::FormatSnapshot(s, {}) == L"Observed: 1000\n", "unmounted volume leaked into report");
+    });
+    test("mount lookup failure is explicit without host or reserve alert", [] {
+        wc::Snapshot s; s.observed = 1000; unsigned spaces = 0;
+        const std::wstring volume = L"\\\\?\\Volume{unavailable}\\";
+        wc::internal::CollectMountedHost(s, volume,
+            [](wchar_t* paths, std::size_t size) {
+                Require(size == 32768, "mount query buffer differs");
+                paths[0] = L'C'; // Even a partially written failure is not a mount.
+                return false;
+            }, [&](std::uint64_t& total, std::uint64_t& free) {
+                ++spaces; total = 100; free = 0; return true;
+            });
+        wc::AlertEngine e;
+        Require(e.Evaluate(s, {}, 1000).empty(), "failed mount lookup emitted false reserve alert");
+        Require(s.hosts.empty() && spaces == 0, "failed mount lookup measured a host");
+        Require(s.notes == std::vector<std::wstring>{L"Host mount paths unavailable: " + volume},
+                "mount lookup failure diagnostic differs");
+        Require(wc::FormatSnapshot(s, {}) == L"Observed: 1000\nNote: Host mount paths unavailable: " + volume + L"\n",
+                "mount lookup failure report differs");
+    });
+    test("drive and folder mounts preserve first label and alertable exact bytes", [] {
+        for (const auto& root : {std::wstring(L"C:\\"), std::wstring(L"C:\\Volumes\\Data\\")}) {
+            wc::Snapshot s; s.observed = 1000; unsigned mounts = 0, spaces = 0;
+            wc::internal::CollectMountedHost(s, L"\\\\?\\Volume{mounted}\\",
+                [&](wchar_t* paths, std::size_t size) {
+                    ++mounts;
+                    Require(size == 32768, "mount query buffer differs");
+                    const auto list = root + L'\0' + L"D:\\" + L'\0';
+                    std::copy(list.begin(), list.end(), paths);
+                    return true;
+                }, [&](std::uint64_t& total, std::uint64_t& free) {
+                    ++spaces; total = 9876543210ULL; free = 128344064; return true;
+                });
+            Require(mounts == 1 && spaces == 1 && s.hosts.size() == 1 && s.notes.empty(),
+                    "mounted volume not measured exactly once");
+            Require(s.hosts[0].root == root && s.hosts[0].total == 9876543210ULL &&
+                    s.hosts[0].free == 128344064, "mounted label or exact measurements changed");
+            wc::AlertEngine e;
+            One(e.Evaluate(s, {}, 1000), L"host:" + root,
+                L"Host reserve critical: " + root + L" (128344064 B free; reserve 21474836480 B).", true);
+        }
+    });
+    test("mounted capacity failure remains unknown without reserve alert", [] {
+        wc::Snapshot s; s.observed = 1000; unsigned spaces = 0;
+        wc::internal::CollectMountedHost(s, L"\\\\?\\Volume{mounted}\\",
+            [](wchar_t* paths, std::size_t) {
+                const std::wstring root = L"C:\\";
+                std::copy(root.begin(), root.end(), paths); return true;
+            }, [&](std::uint64_t& total, std::uint64_t& free) {
+                ++spaces; total = 100; free = 1; return false;
+            });
+        Require(spaces == 1 && s.hosts.size() == 1 && s.hosts[0].root == L"C:\\" &&
+                s.hosts[0].total == 0 && s.hosts[0].free == 0, "failed capacity is not unknown");
+        Require(s.notes == std::vector<std::wstring>{L"Host capacity/free space unknown: C:\\"},
+                "unknown capacity diagnostic differs");
+        wc::AlertEngine e;
+        Require(e.Evaluate(s, {}, 1000).empty(), "unknown mounted capacity alerted");
+        Require(wc::FormatSnapshot(s, {}) == L"Observed: 1000\nHost C:\\ | capacity=unknown | free=unknown\n"
+                L"Note: Host capacity/free space unknown: C:\\\n", "unknown capacity report differs");
     });
     test("host recovery arithmetic saturates at uint64 maximum", [] {
         wc::Config c; c.host_reserve = std::numeric_limits<std::uint64_t>::max();

@@ -2,6 +2,7 @@
 #define NOMINMAX
 #include <windows.h>
 #include "wsl_cleaner.hpp"
+#include "host_inventory_internal.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <limits>
@@ -291,21 +292,18 @@ Snapshot Collect() {
     if (search != INVALID_HANDLE_VALUE) {
         do {
             if (GetDriveTypeW(volume) != DRIVE_FIXED) continue;
-            ULARGE_INTEGER available = {}, total = {}, free = {};
-            std::wstring label = volume;
-            DWORD needed = 0;
-            GetVolumePathNamesForVolumeNameW(volume, nullptr, 0, &needed);
-            if (needed && needed <= 32768) {
-                std::vector<wchar_t> paths(needed);
-                if (GetVolumePathNamesForVolumeNameW(volume, paths.data(), needed, &needed) && paths[0])
-                    label = paths.data();
-            }
             if (!hosts.insert(Lower(volume)).second) continue;
-            HostDisk disk; disk.root = label;
-            if (GetDiskFreeSpaceExW(volume, &available, &total, &free)) {
-                disk.total = total.QuadPart; disk.free = free.QuadPart;
-            } else snapshot.notes.push_back(L"Host capacity/free space unknown: " + label);
-            snapshot.hosts.push_back(disk);
+            internal::CollectMountedHost(snapshot, volume,
+                [&](wchar_t* paths, std::size_t size) {
+                    DWORD needed = 0;
+                    return GetVolumePathNamesForVolumeNameW(volume, paths,
+                        static_cast<DWORD>(size), &needed) != FALSE;
+                }, [&](std::uint64_t& capacity, std::uint64_t& free_bytes) {
+                    ULARGE_INTEGER available = {}, total = {}, free = {};
+                    if (!GetDiskFreeSpaceExW(volume, &available, &total, &free)) return false;
+                    capacity = total.QuadPart; free_bytes = free.QuadPart;
+                    return true;
+                });
         } while (FindNextVolumeW(search, volume, 32768));
         if (GetLastError() != ERROR_NO_MORE_FILES) snapshot.notes.push_back(L"Host volume enumeration was incomplete.");
         FindVolumeClose(search);
