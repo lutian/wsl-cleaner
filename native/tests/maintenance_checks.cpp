@@ -310,6 +310,18 @@ void WslByteDecoding() {
         Require(!DecodeWslOutput(bytes, output) && output.empty(), "malformed UTF8/UTF16, odd bytes and decoded NUL must fail without partial output");
     }
 }
+void WslBomlessChineseDecoding() {
+    const std::string bytes("\x10\x62\x0a\x00", 4);
+    std::wstring output = L"stale";
+    Require(DecodeWslOutput(bytes, output), "BOMless UTF16LE U+6210 and newline must decode successfully");
+    Require(output == L"\u6210\n", "BOMless UTF16LE U+6210 and newline must preserve exact code points");
+}
+void WslForwardedArabicUtf8Decoding() {
+    const std::string bytes("\x61\xd8\xb4", 3);
+    std::wstring output = L"stale";
+    Require(DecodeWslOutput(bytes, output), "valid forwarded UTF8 a and U+0634 must not be mistaken for UTF16LE");
+    Require(output == L"a\u0634", "valid forwarded UTF8 a and U+0634 must preserve exact code points");
+}
 #ifdef _WIN32
 void RedirectedWslBytes() {
     wchar_t executable[32768]{};
@@ -354,7 +366,9 @@ int main(int argc, char** argv) {
         {"compact-refusals", CompactFailures}, {"honest-compactor-refusal", HonestCompactorRefusal},
         {"native-status-success", NativeStatusSuccess}, {"native-status-failures", NativeStatusFailures},
         {"unicode-compact-policy", UnicodeCompactPolicy}, {"provider-subtype", ProviderSubtype},
-        {"optional-docker-platform", OptionalDockerPlatform}, {"wsl-byte-decoding", WslByteDecoding}
+        {"optional-docker-platform", OptionalDockerPlatform}, {"wsl-byte-decoding", WslByteDecoding},
+        {"wsl-bomless-chinese-decoding", WslBomlessChineseDecoding},
+        {"wsl-forwarded-arabic-utf8-decoding", WslForwardedArabicUtf8Decoding}
 #ifdef _WIN32
         , {"redirected-native-utf16-child", RedirectedWslBytes}
 #endif

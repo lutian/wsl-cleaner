@@ -78,8 +78,9 @@ bool DecodeWslOutput(const std::string& bytes, std::wstring& output) {
     output.clear(); std::wstring result;
     const auto byte = [&](std::size_t i) { return static_cast<unsigned char>(bytes[i]); };
     const bool bom = bytes.size() >= 2 && byte(0) == 0xff && byte(1) == 0xfe;
-    // Known WSL only: BOM or a leading LE Latin-1/surrogate unit signals UTF16LE.
-    const bool wide = bom || (bytes.size() > 1 && (byte(1) == 0 || (byte(1) >= 0xd8 && byte(1) <= 0xdb)));
+    // Known WSL only: unmarked UTF16LE needs even length and whole-buffer NUL evidence.
+    // NUL-free input stays strict UTF8; never guess wide from a UTF8 continuation byte.
+    const bool wide = bom || (bytes.size() % 2 == 0 && bytes.find('\0') != std::string::npos);
     if (wide && bytes.size() % 2) return false;
     const auto append = [&](std::uint32_t cp) {
         if (!cp || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) return false;

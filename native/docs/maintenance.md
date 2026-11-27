@@ -6,8 +6,9 @@ isolated native Windows API tests, not by operating on working WSL/Docker data.
 ## Native API verification
 
 Scoped correction: parent observed job23 RED exit 1, 15/17 passing, with only
-optional-platform and WSL-byte-decoding groups failing. Helpers are now wired;
-post-change GREEN is pending. Subtype 3 remains dynamic (2 fixed, 4 differencing),
+optional-platform and WSL-byte-decoding groups failing. Helpers were wired and
+subsequently passed 17/17; final T8 verification is recorded below.
+Subtype 3 remains dynamic (2 fixed, 4 differencing),
 pinned by the production helper and disposable fixture per Microsoft:
 https://learn.microsoft.com/en-us/windows/win32/api/virtdisk/ns-virtdisk-get_virtual_disk_info
 
@@ -18,7 +19,8 @@ locale-independent DWORD results, UTF-16 source paths, and no localized output
 parser or English/ASCII precondition. Portuguese Windows is not excluded.
 The parent's `initguid.h` immediately before `virtdisk.h` is preserved.
 
-Post-change portable GREEN passed 14/14. MSVC Release build and Windows CTest
+At the earlier status-contract checkpoint, portable GREEN passed 14/14.
+MSVC Release build and Windows CTest
 passed all three executables, including settings/policy checks, maintenance fakes,
 and an isolated native Unicode create/open/detached/compact/dispose check against
 a newly created empty dynamic VHDX. It never attaches a disk or accesses real
@@ -138,8 +140,8 @@ Source and backup paths remain UTF-16 and manifests UTF-8; no UI-language or ASC
 path gate exists. Portuguese/other localized Windows installations use the same
 native API and DWORD contract. Existing unambiguous local path checks and their
 30000-character bound remain; unsupported UNC/device/reparse paths are not enabled.
-Actual native API/Unicode behavior still needs parent-owned isolated Windows
-verification; portable fake coverage is not proof of an executed host operation.
+Parent-owned isolated Windows checks passed native API/Unicode fixtures as
+recorded below; portable fake coverage is not proof of an executed host operation.
 
 Require standalone dynamically expanding VHDX on accessible fixed volumes.
 Unrecognized/custom locations absent from `Collect`, reparse/UNC/removable paths,
@@ -205,8 +207,16 @@ shuts down/compacts anything.
 quoted Windows argv. Untrusted data is never shell code. NUL/oversized arguments
 are rejected. Restricted inherited handle lists and kill-on-close jobs constrain
 children. Combined output is capped at 1 MiB. Docker remains strict UTF-8. Only
-trusted system wsl.exe output recognizes UTF16LE BOM/leading LE units or valid
-forwarded UTF-8; malformed sequences and decoded NULs are refused. Read-only
+trusted system wsl.exe output recognizes an explicit UTF16LE BOM, or unmarked
+UTF16LE only when the entire byte buffer has even length and contains a NUL byte.
+Otherwise it requires strict UTF-8, preserving valid NUL-free forwarded UTF-8
+(including Arabic); malformed UTF-8 is never retried as arbitrary UTF16LE.
+UTF16LE still requires valid surrogate pairs and rejects decoded NULs; failures
+clear the output without exposing partial text, while empty output succeeds.
+This is a limited WSL-specific encoding convention, not universal autodetection:
+unmarked UTF16LE without any zero bytes is ambiguous and is treated as UTF-8
+(or rejected if invalid UTF-8), and even-length NUL-bearing bytes are interpreted
+as UTF16LE rather than as NUL-containing UTF-8. Read-only
 CLI commands get 15 seconds; prune/apt/clean-stop/WSL-shutdown get 120 seconds;
 job cleanup waits up to five additional seconds for the direct child. Source
 copy/readback checks a six-hour transaction deadline between chunks. Windows
@@ -249,9 +259,33 @@ failed result does not mean the host was rolled back.
 
 ## Parent-run validation only
 
+T8 decoder regression checkpoint: parent observed job26 RED **17/19 PASS, exit 1**,
+with only `wsl-bomless-chinese-decoding` and
+`wsl-forwarded-arabic-utf8-decoding` failing. These groups pin exact bytes
+`10 62 0A 00` to U+6210 plus newline and `61 D8 B4` to `a` plus U+0634.
+After the narrow whole-buffer detection correction, parent observed job27 GREEN,
+**exit 0**, with portable core **18/18** and maintenance **19/19** passing.
+All original 17 portable maintenance groups, including malformed/NUL rejection,
+and the Windows native redirected-child group remain unchanged.
+
+Parent also reported MSVC **19.44** compilation of the current full CMake/native
+source snapshot and Windows CTest **3/3** passing, including the redirected Unicode
+child in maintenance and isolated disposable Unicode VHDX checks. Shell checks
+passed **16/16** and isolated installer checks **4/4**. Runtime verification was
+parent-owned; this writer did not run builds/tests or operate on real WSL/Docker.
+Package: `dist/native-v1-final.zip`, SHA256
+`14f4873be12aa8c49f5f3071ce1adf0dd02a6c25c41195610a87c47f6b6d5fc2`
+(parent-reported artifact and hash).
+
+Independent verifier `mwyxfdf5-r-ciz3` reported no demonstrated severe
+candidate-caused blocker in static review, explicitly leaving runtime evidence
+parent-owned. These checks close T8's decoder verification, not full end-to-end
+production maintenance proof or native review approval. Clone-local RDD remains
+off by explicit human request; the old rejected review remains rejected.
+
 The parent observed the original stub RED: **0/9, exit 1**, and subsequently
-reported the preceding eleven-group suite at **11 PASS** (job13). The suite now
-has fourteen groups: all eleven existing groups and their safety-ordering checks
+reported the preceding eleven-group suite at **11 PASS** (job13). At the historical
+status-contract checkpoint, the suite had fourteen groups: all eleven existing groups and their safety-ordering checks
 remain, plus `native-status-success`, `native-status-failures` and
 `unicode-compact-policy`. Native status checks require zero to succeed with an
 empty diagnostic and nonzero DWORDs 5, 32, 5023, 997 and 4294967295 to fail with
@@ -276,8 +310,8 @@ From repository root:
 scratch=$(mktemp -d) && g++ -std=c++17 -Wall -Wextra -Werror -pedantic -I native/include native/src/policy.cpp native/src/maintenance.cpp native/src/maintenance_policy.cpp native/tests/maintenance_checks.cpp -o "$scratch/maintenance_checks" && "$scratch/maintenance_checks"
 ```
 
-Observed post-change GREEN: **14/14, exit 0**. Requires core's
-shared functional ValidateConfig; no duplicate settings validator exists here.
+Final parent-observed portable maintenance GREEN: **19/19, exit 0** (job27).
+Requires core's shared functional ValidateConfig; no duplicate settings validator exists here.
 Windows rebuild and post-change native checks are parent-owned using the installed
 Visual Studio 17 MSVC compiler selected by CMake, even when it is absent from PATH.
 The parent diagnosed Zig crashes; do not substitute that failed toolchain for the
